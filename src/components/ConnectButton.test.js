@@ -23,3 +23,23 @@ test("shows the complete connected wallet address", async () => {
     await vite.close();
   }
 });
+
+test("renders the connect action as a non-submit button", async () => {
+  const vite = await createServer({
+    server: { middlewareMode: true, hmr: false },
+    appType: "custom",
+  });
+
+  try {
+    const { default: ConnectButton } = await vite.ssrLoadModule(
+      "/src/components/ConnectButton.jsx",
+    );
+    const html = renderToStaticMarkup(
+      ConnectButton({ account: null, connecting: false, onConnect() {} }),
+    );
+
+    assert.match(html, /<button type="button">Connect Wallet<\/button>/);
+  } finally {
+    await vite.close();
+  }
+});

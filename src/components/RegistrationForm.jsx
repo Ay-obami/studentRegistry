@@ -1,53 +1,90 @@
 import { useState } from "react";
-import { register } from "../registry";
+import { registerStudent } from "../registry";
+import { getErrorMessage } from "../utils/errors";
 
-export default function RegisterForm({ signer, onRegistered }) {
+export default function RegistrationForm({ signer, onRegistered }) {
   const [name, setName] = useState("");
   const [age, setAge] = useState("");
   const [course, setCourse] = useState("");
-  const [status, setStatus] = useState("idle");
+  const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState("");
 
-  async function handleSubmit(e) {
-    e.preventDefault();
+  async function handleSubmit(event) {
+    event.preventDefault();
+    const studentAge = Number(age);
 
-    const ageNumber = Number(age);
-    if (!name.trim() || !course.trim() || !Number.isInteger(ageNumber) || ageNumber <= 0) {
-      setStatus("error");
-      setMessage("Please enter a name, a valid age, and a course.");
+    if (
+      !name.trim() ||
+      !course.trim() ||
+      !Number.isInteger(studentAge) ||
+      studentAge <= 0
+    ) {
+      setMessageType("error");
+      setMessage("Enter a name, a valid age, and a course.");
       return;
     }
 
     try {
-      setStatus("pending");
-      setMessage("Confirm in your wallet, then wait for the transaction to be mined...");
-      await register(signer, name.trim(), ageNumber, course.trim());
+      setSubmitting(true);
+      setMessageType("");
+      setMessage("Confirm the transaction in MetaMask.");
 
-      setStatus("success");
-      setMessage("Registered successfully!");
+      await registerStudent(signer, {
+        name: name.trim(),
+        age: studentAge,
+        course: course.trim(),
+      });
+
       setName("");
       setAge("");
       setCourse("");
+      setMessageType("success");
+      setMessage("Student registered successfully.");
       onRegistered();
-    } catch (err) {
-      setStatus("error");
-      if (err.code === "ACTION_REJECTED") {
-        setMessage("Transaction was rejected in your wallet.");
-      } else {
-        setMessage(err.reason || err.shortMessage || err.message || "Registration failed.");
-      }
+    } catch (registrationError) {
+      const wasRejected = registrationError.code === "ACTION_REJECTED";
+      setMessageType("error");
+      setMessage(
+        wasRejected
+          ? "Transaction was rejected."
+          : getErrorMessage(registrationError, "Registration failed."),
+      );
+    } finally {
+      setSubmitting(false);
     }
   }
 
   return (
     <form onSubmit={handleSubmit}>
-      <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
-      <input placeholder="Age" type="number" min="1" value={age} onChange={(e) => setAge(e.target.value)} />
-      <input placeholder="Course" value={course} onChange={(e) => setCourse(e.target.value)} />
-      <button type="submit" disabled={status === "pending"}>
-        {status === "pending" ? "Registering..." : "Register"}
+      <label htmlFor="student-name">Name</label>
+      <input
+        id="student-name"
+        value={name}
+        onChange={(event) => setName(event.target.value)}
+      />
+
+      <label htmlFor="student-age">Age</label>
+      <input
+        id="student-age"
+        type="number"
+        min="1"
+        value={age}
+        onChange={(event) => setAge(event.target.value)}
+      />
+
+      <label htmlFor="student-course">Course</label>
+      <input
+        id="student-course"
+        value={course}
+        onChange={(event) => setCourse(event.target.value)}
+      />
+
+      <button type="submit" disabled={submitting}>
+        {submitting ? "Registering..." : "Register student"}
       </button>
-      {message && <p className={status === "error" ? "error" : status === "success" ? "success" : "muted"}>{message}</p>}
+
+      {message && <p className={`status ${messageType}`}>{message}</p>}
     </form>
   );
 }

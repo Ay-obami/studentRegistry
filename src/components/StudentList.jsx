@@ -1,59 +1,62 @@
 import { useState } from "react";
-import { ethers } from "ethers";
+import { parseAddresses } from "../utils/addresses";
 
-const short = (a) => a.slice(0, 6) + "..." + a.slice(-4);
-
-export default function StudentList({ students, loading, error, onAddAddresses }) {
-  const [text, setText] = useState("");
+export default function StudentList({
+  students,
+  loading,
+  error,
+  onAddAddresses,
+}) {
+  const [input, setInput] = useState("");
   const [inputError, setInputError] = useState("");
 
   function handleLoad() {
+    try {
+      const addresses = parseAddresses(input);
 
-    const list = text.split(/[\s,]+/).filter(Boolean);
-    const invalid = list.filter((a) => !ethers.isAddress(a));
+      if (addresses.length === 0) {
+        setInputError("Enter at least one wallet address.");
+        return;
+      }
 
-    if (list.length === 0) {
-      setInputError("Paste at least one address.");
-      return;
+      onAddAddresses(addresses);
+      setInput("");
+      setInputError("");
+    } catch (addressError) {
+      setInputError(addressError.message);
     }
-    if (invalid.length > 0) {
-      setInputError("Invalid address: " + invalid[0]);
-      return;
-    }
-
-    setInputError("");
-    onAddAddresses(list);
-    setText("");
   }
 
   return (
-    <div>
+    <div className="form-group">
+      <label htmlFor="student-addresses">Wallet addresses</label>
       <textarea
-        rows={4}
-        placeholder="Paste addresses (separated by commas, spaces, or new lines)"
-        value={text}
-        onChange={(e) => setText(e.target.value)}
+        id="student-addresses"
+        rows="4"
+        placeholder="Separate addresses with commas, spaces, or new lines"
+        value={input}
+        onChange={(event) => setInput(event.target.value)}
       />
-      <button onClick={handleLoad} disabled={loading}>
+      <button type="button" onClick={handleLoad} disabled={loading}>
         {loading ? "Loading..." : "Load students"}
       </button>
-      {inputError && <p className="error">{inputError}</p>}
-      {error && <p className="error">{error}</p>}
 
+      {inputError && <p className="status error">{inputError}</p>}
+      {error && <p className="status error">{error}</p>}
       {!loading && !error && students.length === 0 && (
-        <p className="muted">No students loaded yet.</p>
+        <p className="status">No students loaded yet.</p>
       )}
 
-      {students.map((s) => (
-        <div className="card" key={s.address}>
-          <div className="row">
-            <strong>{s.name}</strong>
-            <span className="muted">{short(s.address)}</span>
-          </div>
-          <div>Age: {s.age}</div>
-          <div>Course: {s.course}</div>
-        </div>
-      ))}
+      <div className="student-list">
+        {students.map((student) => (
+          <article className="student-card" key={student.address}>
+            <h3>{student.name}</h3>
+            <p>Age: {student.age}</p>
+            <p>Course: {student.course}</p>
+            <p className="address">{student.address}</p>
+          </article>
+        ))}
+      </div>
     </div>
   );
 }

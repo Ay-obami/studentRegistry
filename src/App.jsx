@@ -1,39 +1,56 @@
-import { useWallet } from "./hooks/useWallet";
-import { useStudents } from "./hooks/useStudents";
 import ConnectButton from "./components/ConnectButton";
-import RegisterForm from "./components/RegistrationForm";
-import StudentLookup from "./components/StudentLookup";
+import RegistrationForm from "./components/RegistrationForm";
 import StudentList from "./components/StudentList";
+import StudentLookup from "./components/StudentLookup";
+import { useStudents } from "./hooks/useStudents";
+import { useWallet } from "./hooks/useWallet";
 
 export default function App() {
   const wallet = useWallet();
-  const { students, loading, error, addAddresses, refresh } = useStudents(wallet.signer);
+  const studentList = useStudents(wallet.signer);
 
-
-  function handleRegistered() {
-    addAddresses([wallet.account]);
-    refresh();
+  function handleStudentRegistered() {
+    studentList.addAddresses([wallet.account]);
+    studentList.refresh();
   }
 
   return (
-    <>
-      <h1>Student Registry</h1>
-      <ConnectButton account={wallet.account} connecting={wallet.connecting} onConnect={wallet.connect} />
-      {wallet.error && <p className="error">{wallet.error}</p>}
+    <main className="app">
+      <header className="page-header">
+        <p className="eyebrow">Sepolia dApp</p>
+        <h1>Student Registry</h1>
+        <p>Register and look up student records stored on the blockchain.</p>
 
-      {!wallet.isConnected && <p className="muted">Connect your wallet to register and view students.</p>}
+        <ConnectButton
+          account={wallet.account}
+          connecting={wallet.connecting}
+          onConnect={wallet.connect}
+        />
 
-      {wallet.isConnected && !wallet.isCorrectNetwork && (
-        <p className="warn">
-          Your wallet is on the wrong network. <button onClick={wallet.switchNetwork}>Switch network</button>
-        </p>
+        {wallet.error && <p className="status error">{wallet.error}</p>}
+      </header>
+
+      {!wallet.isConnected && (
+        <p className="status">Connect MetaMask to use the student registry.</p>
       )}
 
-      {wallet.isConnected && wallet.isCorrectNetwork && (
-        <>
+      {wallet.isConnected && !wallet.isSepolia && (
+        <div className="status warning">
+          <p>Switch your wallet to the Sepolia network.</p>
+          <button type="button" onClick={wallet.switchToSepolia}>
+            Switch network
+          </button>
+        </div>
+      )}
+
+      {wallet.isConnected && wallet.isSepolia && (
+        <div className="sections">
           <section>
-            <h2>Register</h2>
-            <RegisterForm signer={wallet.signer} onRegistered={handleRegistered} />
+            <h2>Register a student</h2>
+            <RegistrationForm
+              signer={wallet.signer}
+              onRegistered={handleStudentRegistered}
+            />
           </section>
 
           <section>
@@ -42,11 +59,16 @@ export default function App() {
           </section>
 
           <section>
-            <h2>All students</h2>
-            <StudentList students={students} loading={loading} error={error} onAddAddresses={addAddresses} />
+            <h2>Load multiple students</h2>
+            <StudentList
+              students={studentList.students}
+              loading={studentList.loading}
+              error={studentList.error}
+              onAddAddresses={studentList.addAddresses}
+            />
           </section>
-        </>
+        </div>
       )}
-    </>
+    </main>
   );
 }

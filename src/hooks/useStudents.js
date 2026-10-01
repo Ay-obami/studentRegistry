@@ -1,59 +1,71 @@
-import { useState, useEffect, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getStudents } from "../registry";
+import { addUniqueAddresses } from "../utils/addresses";
+import { getErrorMessage } from "../utils/errors";
 
-// Holds the list of addresses to look up and the loaded student details.
-// Reloads automatically when the signer (wallet/network) or the address list changes.
 export function useStudents(signer) {
   const [addresses, setAddresses] = useState([]);
-  const [students, setStudents] = useState([]);
+  const [result, setResult] = useState({
+    signer: null,
+    addresses: null,
+    students: [],
+    error: null,
+  });
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [reloadKey, setReloadKey] = useState(0);
+  const [refreshCount, setRefreshCount] = useState(0);
 
-  // Merge new addresses into the list, ignoring duplicates (case-insensitive)
-  const addAddresses = useCallback((list) => {
-    setAddresses((prev) => {
-      const seen = new Set(prev.map((a) => a.toLowerCase()));
-      const next = [...prev];
-      for (const addr of list) {
-        const key = addr.toLowerCase();
-        if (!seen.has(key)) {
-          seen.add(key);
-          next.push(addr);
-        }
-      }
-      return next.length === prev.length ? prev : next;
-    });
+  const addAddresses = useCallback((newAddresses) => {
+    setAddresses((currentAddresses) =>
+      addUniqueAddresses(currentAddresses, newAddresses),
+    );
   }, []);
 
-  // Force a reload with the current address list
-  const refresh = useCallback(() => setReloadKey((k) => k + 1), []);
+  const refresh = useCallback(() => {
+    setRefreshCount((count) => count + 1);
+  }, []);
 
   useEffect(() => {
-    if (!signer || addresses.length === 0) {
-      setStudents([]);
-      return;
+    if (!signer || addresses.length === 0) return undefined;
+
+    let ignoreResult = false;
+
+    async function loadStudents() {
+      setLoading(true);
+
+      try {
+        const loadedStudents = await getStudents(signer, addresses);
+        if (!ignoreResult) {
+          setResult({ signer, addresses, students: loadedStudents, error: null });
+        }
+      } catch (loadError) {
+        if (!ignoreResult) {
+          setResult({
+            signer,
+            addresses,
+            students: [],
+            error: getErrorMessage(loadError, "Could not load students."),
+          });
+        }
+      } finally {
+        if (!ignoreResult) setLoading(false);
+      }
     }
 
-    let cancelled = false; // ignore results from outdated requests
-    setLoading(true);
-    setError(null);
-
-    getStudents(signer, addresses)
-      .then((result) => {
-        if (!cancelled) setStudents(result);
-      })
-      .catch((err) => {
-        if (!cancelled) setError(err.shortMessage || err.message || "Could not load students.");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+    loadStudents();
 
     return () => {
-      cancelled = true;
+      ignoreResult = true;
     };
-  }, [signer, addresses, reloadKey]);
+  }, [signer, addresses, refreshCount]);
 
-  return { students, loading, error, addAddresses, refresh };
+  const resultIsCurrent =
+    result.signer === signer && result.addresses === addresses;
+
+  return {
+    students: resultIsCurrent ? result.students : [],
+    loading: Boolean(signer) && addresses.length > 0 && loading,
+    error: resultIsCurrent ? result.error : null,
+    addAddresses,
+    refresh,
+  };
 }
